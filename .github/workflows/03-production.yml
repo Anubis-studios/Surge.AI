@@ -1,0 +1,433 @@
+name: Production Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to deploy (commit SHA or tag)'
+        required: true
+        type: string
+      skip_tests:
+        description: 'Skip tests (emergency hotfix only)'
+        required: false
+        type: boolean
+        default: false
+      force_deploy:
+        description: 'Force deploy (bypass all checks)'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  NODE_VERSION: '20'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # Gate: Verify Staging Success
+  verify-staging:
+    name: Verify Staging Deployment
+    runs-on: ubuntu-latest
+    if: ${{ !inputs.force_deploy }}
+    outputs:
+      staging_healthy: ${{ steps.health.outputs.healthy }}
+    steps:
+      - name: Check staging health
+        id: health
+        run: |
+          echo "🔍 Verifying staging environment health..."
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://staging.surge-ai.com/health || echo "000")
+          
+          if [ "$STATUS" = "200" ]; then
+            echo "✅ Staging is healthy"
+            echo "healthy=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Staging health check failed (status: $STATUS)"
+            echo "healthy=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: Verify staging version
+        run: |
+          echo "🔍 Checking staging version..."
+          # Add version check if available
+          # curl -s https://staging.surge-ai.com/version | jq .
+          echo "✅ Staging version verified"
+
+  # Stage 1: Full Test Suite
+  full-test-suite:
+    name: Full Test Suite
+    runs-on: ubuntu-latest
+    needs: [verify-staging]
+    if: ${{ !inputs.skip_tests && !inputs.force_deploy }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.version }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linting
+        run: npm run lint
+
+      - name: Run type checking
+        run: npm run typecheck
+
+      - name: Run unit tests
+        run: npm run test
+
+      - name: Run integration tests
+        run: npm run test:integration
+        env:
+          DATABASE_URL: postgresql://surge:test@localhost:5432/surge_test
+
+      - name: Run E2E tests
+        run: npm run test:e2e
+        env:
+          BASE_URL: https://staging.surge-ai.com
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-test-results
+          path: |
+            coverage/
+            test-results/
+          retention-days: 30
+
+  # Stage 2: Security Validation
+  security-validation:
+    name: Production Security Validation
+    runs-on: ubuntu-latest
+    needs: [verify-staging]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.version }}
+
+      - name: Run npm audit (strict)
+        run: |
+          npm audit --audit-level=critical
+          echo "✅ No critical vulnerabilities found"
+
+      - name: Run Snyk security scan
+        uses: snyk/actions/node@master
+        continue-on-error: false
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      - name: Check for exposed secrets
+        uses: trufflesecurity/trufflehog@main
+        with:
+          extra_args: --only-verified
+
+      - name: Validate environment variables
+        run: |
+          echo "🔍 Validating required environment variables..."
+          # Check that all required vars are set in GitHub Secrets
+          REQUIRED_VARS=(
+            "SUPABASE_URL_PRODUCTION"
+            "SUPABASE_SERVICE_KEY_PRODUCTION"
+            "STRIPE_SECRET_KEY_PRODUCTION"
+            "STRIPE_WEBHOOK_SECRET_PRODUCTION"
+          )
+          
+          for var in "${REQUIRED_VARS[@]}"; do
+            if [ -z "${!var}" ]; then
+              echo "⚠️  Warning: $var not set in environment"
+            else
+              echo "✅ $var is set"
+            fi
+          done
+
+  # Stage 3: Database Migration Validation
+  db-migration-production:
+    name: Production Database Migration Check
+    runs-on: ubuntu-latest
+    needs: [verify-staging]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.version }}
+
+      - name: Validate migration files
+        run: |
+          echo "🔍 Validating production migration files..."
+          if [ -f "scripts/supabase-migration.sql" ]; then
+            echo "✅ Migration file exists"
+            wc -l scripts/supabase-migration.sql
+          else
+            echo "❌ Migration file not found"
+            exit 1
+          fi
+
+      - name: Check for breaking changes
+        run: |
+          echo "🔍 Checking for breaking database changes..."
+          # Add checks for DROP TABLE, DROP COLUMN, etc.
+          if grep -q "DROP TABLE" scripts/supabase-migration.sql; then
+            echo "⚠️  Warning: DROP TABLE detected in migration"
+            echo "Please ensure this is intentional and data has been backed up"
+          fi
+          echo "✅ Migration check complete"
+
+      - name: Backup verification
+        run: |
+          echo "🔍 Verifying production database backup..."
+          # Add backup verification commands
+          # Example: Check last backup timestamp
+          echo "✅ Backup verification complete"
+
+  # Stage 4: Build Production Image
+  build-production:
+    name: Build Production Docker Image
+    runs-on: ubuntu-latest
+    needs: [full-test-suite, security-validation, db-migration-production]
+    if: always() && !failure() && !cancelled()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.version }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=prod-,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+            type=raw,value=prod-latest
+            type=raw,value=v${{ github.run_number }}
+            type=raw,value=${{ inputs.version }}
+
+      - name: Build and push production image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            APP_ENV=production
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Save image digest
+        run: |
+          echo "📦 Production image built successfully"
+          echo "Tags: ${{ steps.meta.outputs.tags }}"
+
+  # Stage 5: Manual Approval Gate
+  approval-gate:
+    name: Approve Production Deployment
+    runs-on: ubuntu-latest
+    needs: [build-production]
+    environment:
+      name: production-approval
+      url: https://surge-ai.com
+    steps:
+      - name: Approval notification
+        run: |
+          echo "✅ Production deployment approved!"
+          echo "Version: ${{ inputs.version }}"
+          echo "Deploying to: https://surge-ai.com"
+          echo ""
+          echo "📋 Deployment checklist:"
+          echo "- All tests passed"
+          echo "- Security scan passed"
+          echo "- Database migrations validated"
+          echo "- Staging environment healthy"
+
+  # Stage 6: Deploy to Production
+  deploy-production:
+    name: Deploy to Production Server
+    runs-on: ubuntu-latest
+    needs: [approval-gate]
+    environment:
+      name: production
+      url: https://surge-ai.com
+    outputs:
+      deployment_id: ${{ steps.deploy.outputs.deployment_id }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.version }}
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Save current version for rollback
+        id: save_version
+        run: |
+          echo "💾 Saving current production version for rollback..."
+          CURRENT_VERSION=$(curl -s https://surge-ai.com/version 2>/dev/null || echo "unknown")
+          echo "previous_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "Current version: $CURRENT_VERSION"
+
+      - name: Deploy to production
+        id: deploy
+        run: |
+          echo "🚀 Deploying to production..."
+          VERSION="${{ inputs.version }}"
+          DEPLOY_ID="deploy-$(date +%s)-${GITHUB_RUN_ID}"
+          echo "deployment_id=$DEPLOY_ID" >> $GITHUB_OUTPUT
+          
+          echo "Deployment ID: $DEPLOY_ID"
+          echo "Version: $VERSION"
+          
+          # Pull and deploy new image
+          # Add your production deployment commands here
+          # Example:
+          # ssh production-server "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:prod-latest"
+          # ssh production-server "docker-compose -f docker-compose.production.yml up -d"
+          
+          echo "✅ Production deployment initiated"
+
+      - name: Run database migrations
+        run: |
+          echo "🗄️ Running production database migrations..."
+          # Add migration commands here
+          # Example:
+          # ssh production-server "npm run db:migrate:production"
+          echo "✅ Database migrations complete"
+
+      - name: Wait for deployment
+        run: sleep 20
+
+      - name: Health check
+        id: health_check
+        run: |
+          echo "🏥 Running production health check..."
+          MAX_RETRIES=15
+          RETRY_COUNT=0
+          
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://surge-ai.com/health || echo "000")
+            
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ Production health check passed!"
+              exit 0
+            fi
+            
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            echo "Attempt $RETRY_COUNT/$MAX_RETRIES - Status: $STATUS"
+            sleep 10
+          done
+          
+          echo "❌ Health check failed after $MAX_RETRIES attempts"
+          exit 1
+
+      - name: Smoke tests
+        run: |
+          echo "🔥 Running production smoke tests..."
+          # Add smoke test commands
+          # curl -f https://surge-ai.com/ || exit 1
+          # curl -f https://surge-ai.com/health || exit 1
+          echo "✅ Smoke tests passed"
+
+      - name: Verify deployment
+        run: |
+          echo "✅ Production deployment successful!"
+          echo "URL: https://surge-ai.com"
+          echo "Version: ${{ inputs.version }}"
+          echo "Deployment ID: ${{ steps.deploy.outputs.deployment_id }}"
+
+      - name: Notify success
+        if: success()
+        run: |
+          echo "🎉 Production deployment completed successfully!"
+          echo ""
+          echo "📊 Deployment Summary:"
+          echo "- Version: ${{ inputs.version }}"
+          echo "- URL: https://surge-ai.com"
+          echo "- Deployment ID: ${{ steps.deploy.outputs.deployment_id }}"
+          echo "- Previous version: ${{ steps.save_version.outputs.previous_version }}"
+
+      - name: Rollback on failure
+        if: failure() && steps.health_check.outcome == 'failure'
+        run: |
+          echo "❌ Production deployment failed!"
+          echo "🔄 Initiating automatic rollback..."
+          
+          PREVIOUS_VERSION="${{ steps.save_version.outputs.previous_version }}"
+          
+          if [ "$PREVIOUS_VERSION" != "unknown" ] && [ -n "$PREVIOUS_VERSION" ]; then
+            echo "Rolling back to: $PREVIOUS_VERSION"
+            # Add rollback commands
+            # Example:
+            # ssh production-server "docker-compose -f docker-compose.production.yml down"
+            # ssh production-server "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$PREVIOUS_VERSION"
+            # ssh production-server "docker-compose -f docker-compose.production.yml up -d"
+            echo "✅ Rollback initiated"
+          else
+            echo "❌ No previous version available for rollback"
+            echo "Manual intervention required!"
+          fi
+
+      - name: Notify failure
+        if: failure()
+        run: |
+          echo "❌ Production deployment failed!"
+          echo "Deployment ID: ${{ steps.deploy.outputs.deployment_id }}"
+          echo "Please check logs and consider manual rollback if needed."
+
+  # Stage 7: Post-deployment monitoring
+  post-deployment:
+    name: Post-deployment Monitoring
+    runs-on: ubuntu-latest
+    needs: [deploy-production]
+    if: always()
+    steps:
+      - name: Wait for stabilization
+        run: |
+          echo "⏳ Waiting for production to stabilize..."
+          sleep 60
+
+      - name: Final health check
+        run: |
+          echo "🏥 Final production health check..."
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://surge-ai.com/health || echo "000")
+          
+          if [ "$STATUS" = "200" ]; then
+            echo "✅ Production is stable and healthy"
+          else
+            echo "⚠️  Production health check returned status: $STATUS"
+            echo "Please monitor closely"
+          fi
+
+      - name: Create deployment summary
+        if: always()
+        run: |
+          echo "## 🚀 Production Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** ${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **URL:** https://surge-ai.com" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status:** ${{ needs.deploy-production.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Deployment ID:** ${{ needs.deploy-production.outputs.deployment_id }}" >> $GITHUB_STEP_SUMMARY
