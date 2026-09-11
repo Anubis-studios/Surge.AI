@@ -15,7 +15,7 @@ export default function VideoEngine() {
     setIsGenerating(true);
     const assets = { scenes: scenes.filter(s => s.trim()) };
 
-    // Simulate processing delay (supplier passthrough)
+    // Simulate processing delay
     await new Promise(resolve => setTimeout(resolve, 2500));
     generateVideo(prompt, assets);
     setIsGenerating(false);
@@ -46,7 +46,7 @@ export default function VideoEngine() {
               Video Engine
             </span>
           </h1>
-          <p className="text-obsidian-500 mt-1">Premium supplier passthrough video generation</p>
+          <p className="text-obsidian-500 mt-1">Premium AI video generation</p>
         </div>
         <div className="stat-box py-3 px-5 flex items-center gap-3">
           <DollarSign className="w-5 h-5 text-cyber-purple" />
@@ -104,14 +104,14 @@ export default function VideoEngine() {
             </div>
           </div>
 
-          {/* Supplier Info */}
+          {/* Engine Info */}
           <div className="obsidian-panel p-4 bg-cyber-purple/5 border-cyber-purple/20">
             <div className="flex items-center gap-2 mb-2">
               <Film className="w-4 h-4 text-cyber-purple" />
-              <span className="text-sm font-medium text-cyber-purple">Supplier: Wireflow v2</span>
+              <span className="text-sm font-medium text-cyber-purple">Surge.AI Video Engine</span>
             </div>
             <p className="text-xs text-obsidian-400">
-              Videos are rendered via our premium supplier network with automatic fallback routing for maximum reliability.
+              Videos are rendered via our premium rendering network with automatic fallback routing for maximum reliability.
             </p>
           </div>
 
@@ -124,7 +124,7 @@ export default function VideoEngine() {
             {isGenerating ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
-                Rendering via supplier...
+                Rendering your video...
               </>
             ) : (
               <>
@@ -192,7 +192,7 @@ export default function VideoEngine() {
                         </span>
                       </div>
                       <p className="text-xs text-obsidian-600 mt-1">
-                        via {vid.supplier} • {new Date(vid.created_at).toLocaleDateString()}
+                        {new Date(vid.created_at).toLocaleDateString()}
                       </p>
                     </div>
                   </div>

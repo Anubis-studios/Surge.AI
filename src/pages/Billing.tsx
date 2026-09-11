@@ -39,7 +39,7 @@ export default function Billing() {
             </div>
           </div>
           <p className="text-xs text-obsidian-500">
-            Used for AI image generation (SDXL). Earn free via daily streaks or purchase bundles below.
+            Used for AI image generation. Earn free via daily streaks or purchase bundles below.
           </p>
         </div>
 
@@ -54,7 +54,7 @@ export default function Billing() {
             </div>
           </div>
           <p className="text-xs text-obsidian-500">
-            Used for AI video generation and premium features. Covers supplier rendering costs.
+            Used for AI video generation and premium features.
           </p>
         </div>
       </div>

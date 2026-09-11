@@ -260,7 +260,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       tenant_id: state.tenant.id,
       owner_profile_id: state.user.id,
       status: 'completed',
-      supplier: 'wireflow-v2',
+      supplier: 'surge-engine',
       input_prompt: prompt,
       input_assets: assets || {},
       output_url: thumbUrl,

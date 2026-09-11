@@ -74,11 +74,11 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-white">Image Studio</h3>
-                  <p className="text-sm text-obsidian-500">SDXL-powered generation</p>
+                  <p className="text-sm text-obsidian-500">AI image generation</p>
                 </div>
               </div>
               <p className="text-obsidian-400 text-sm leading-relaxed">
-                Create stunning AI images with Stable Diffusion XL. Each generation costs 1 Surge Coin.
+                Create stunning AI images with our premium engine. Each generation costs 1 Surge Coin.
               </p>
             </div>
             <ArrowRight className="w-5 h-5 text-obsidian-500 group-hover:text-gold-400 transition-colors mt-1" />
@@ -94,11 +94,11 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-white">Video Engine</h3>
-                  <p className="text-sm text-obsidian-500">Supplier passthrough</p>
+                  <p className="text-sm text-obsidian-500">AI video generation</p>
                 </div>
               </div>
               <p className="text-obsidian-400 text-sm leading-relaxed">
-                Generate AI videos via premium supplier network. Each render costs 3 Surge Bucks.
+                Generate premium AI videos with cinematic quality. Each render costs 3 Surge Bucks.
               </p>
             </div>
             <ArrowRight className="w-5 h-5 text-obsidian-500 group-hover:text-cyber-purple transition-colors mt-1" />

@@ -165,7 +165,7 @@ export default function Rewards() {
             <h4 className="font-bold text-white">What are Surge Coins?</h4>
           </div>
           <p className="text-sm text-obsidian-400 leading-relaxed">
-            Surge Coins are used for AI image generation via our SDXL engine. Each image costs 1 Surge Coin.
+            Surge Coins are used for AI image generation. Each image costs 1 Surge Coin.
             Earn them free through daily login streaks, or purchase bundles for more.
           </p>
         </div>

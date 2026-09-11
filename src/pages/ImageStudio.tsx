@@ -53,7 +53,7 @@ export default function ImageStudio() {
             <Image className="w-8 h-8 text-gold-400" />
             Image Studio
           </h1>
-          <p className="text-obsidian-500 mt-1">SDXL-powered AI image generation</p>
+          <p className="text-obsidian-500 mt-1">Premium AI image generation</p>
         </div>
         <div className="stat-box py-3 px-5 flex items-center gap-3">
           <Coins className="w-5 h-5 text-gold-400" />

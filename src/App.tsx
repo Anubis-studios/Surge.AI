@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { StoreProvider } from './store';
 import Layout from './components/Layout';
 import Notification from './components/Notification';
+import InstallPrompt from './components/InstallPrompt';
 import Dashboard from './pages/Dashboard';
 import ImageStudio from './pages/ImageStudio';
 import VideoEngine from './pages/VideoEngine';
@@ -21,6 +22,7 @@ function App() {
     <StoreProvider>
       <BrowserRouter>
         <Notification />
+        <InstallPrompt />
         <Layout>
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />

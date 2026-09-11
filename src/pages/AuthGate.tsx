@@ -57,14 +57,14 @@ export default function AuthGate({ onLogin }: AuthGateProps) {
             </h1>
 
             <p className="text-lg text-obsidian-400 max-w-md leading-relaxed">
-              Create stunning AI images with SDXL and premium videos via our supplier network. 
+              Create stunning AI images and premium videos via our low cost Surge.AI. 
               Powered by a dual-currency creator economy.
             </p>
 
             <div className="flex flex-wrap gap-4">
               <div className="flex items-center gap-2 text-sm text-obsidian-400">
                 <Image className="w-4 h-4 text-gold-400" />
-                <span>SDXL Image Studio</span>
+                <span>Image Studio</span>
               </div>
               <div className="flex items-center gap-2 text-sm text-obsidian-400">
                 <Video className="w-4 h-4 text-cyber-purple" />
