@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: surge
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: surge_test
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U surge -d surge_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Supabase local development (optional)
+  # Uncomment if you want to test with local Supabase
+  # supabase:
+  #   image: supabase/local:latest
+  #   ports:
+  #     - "54321:8000"
+  #   environment:
+  #     POSTGRES_PASSWORD: test
+
+volumes:
+  postgres_test_data:

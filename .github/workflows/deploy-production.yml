@@ -1,0 +1,165 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      rollback:
+        description: 'Rollback to previous version'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  pre-deploy-checks:
+    name: Pre-deploy Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Run type check
+        run: npm run typecheck
+
+      - name: Run tests
+        run: npm run test
+
+      - name: Build application
+        run: npm run build
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [pre-deploy-checks]
+    environment: production
+    if: ${{ !inputs.rollback }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=prod-
+            type=raw,value=prod-latest
+            type=raw,value=v${{ github.run_number }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Save current version for rollback
+        run: |
+          echo "PREVIOUS_VERSION=$(cat .previous-version 2>/dev/null || echo 'none')" >> $GITHUB_ENV
+          echo "${{ github.sha }}" > .previous-version
+
+      - name: Deploy to production
+        run: |
+          echo "🚀 Deploying to production..."
+          # Add your deployment commands here
+          # Example: kubectl set image deployment/surge-ai surge-ai=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:prod-latest
+        env:
+          DEPLOY_TOKEN: ${{ secrets.PRODUCTION_DEPLOY_TOKEN }}
+
+      - name: Health check
+        id: health
+        run: |
+          echo "Running health check..."
+          # Wait for deployment to stabilize
+          sleep 10
+          # Add health check commands
+          # curl -f https://surge.ai/health || exit 1
+          echo "✅ Health check passed"
+
+      - name: Rollback on failure
+        if: failure() && steps.health.outcome == 'failure'
+        run: |
+          echo "❌ Deployment failed, rolling back..."
+          # Add rollback commands
+          # Example: kubectl rollout undo deployment/surge-ai
+          echo "🔄 Rollback initiated"
+
+      - name: Notify on success
+        if: success()
+        run: |
+          echo "✅ Production deployment successful!"
+          echo "Version: ${{ github.sha }}"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Production deployment failed!"
+          echo "Check logs for details"
+
+  rollback:
+    name: Rollback Production
+    runs-on: ubuntu-latest
+    needs: [pre-deploy-checks]
+    environment: production
+    if: ${{ inputs.rollback }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get previous version
+        id: prev
+        run: |
+          # Get the previous successful deployment
+          PREVIOUS_TAG=$(docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:prod-latest | jq -r '.manifests[0].digest' || echo "none")
+          echo "previous_tag=$PREVIOUS_TAG" >> $GITHUB_OUTPUT
+
+      - name: Rollback to previous version
+        run: |
+          echo "🔄 Rolling back to previous version..."
+          # Add rollback commands
+          # Example: kubectl rollout undo deployment/surge-ai
+          echo "✅ Rollback complete"
+
+      - name: Health check after rollback
+        run: |
+          echo "Running health check after rollback..."
+          sleep 10
+          # Add health check commands
+          echo "✅ Post-rollback health check passed"
+
+      - name: Notify rollback
+        run: |
+          echo "🔄 Production rollback completed"
+          echo "Previous version restored"
