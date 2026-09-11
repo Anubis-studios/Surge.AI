@@ -1,18 +1,36 @@
 import { useStore, SURGE_COIN_BUNDLES, SURGE_BUCK_BUNDLES } from '../store';
-import { Coins, DollarSign, CreditCard, Check, Star, Zap } from 'lucide-react';
+import { useBillingStatus, usePurchase } from '../hooks/useApi';
+import { Coins, DollarSign, CreditCard, Check, Star, Zap, Loader2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 export default function Billing() {
-  const { state, purchaseCoins, purchaseBucks } = useStore();
+  const { state } = useStore();
+  const { data: apiBilling } = useBillingStatus();
+  const { purchaseCoins, purchaseBucks, loading } = usePurchase();
+  
+  // Use API data if available, fallback to store
+  const billing = apiBilling || state.billing;
 
-  const handleBuyCoins = (bundleId: string) => {
-    purchaseCoins(bundleId);
-    confetti({ particleCount: 60, spread: 50, origin: { y: 0.7 }, colors: ['#fbbf24', '#f59e0b'] });
+  const handleBuyCoins = async (bundleId: string) => {
+    try {
+      const result = await purchaseCoins(bundleId);
+      // In production, this would redirect to Stripe
+      // For now, we simulate the purchase
+      confetti({ particleCount: 60, spread: 50, origin: { y: 0.7 }, colors: ['#fbbf24', '#f59e0b'] });
+    } catch (err) {
+      console.error('Purchase failed:', err);
+    }
   };
 
-  const handleBuyBucks = (bundleId: string) => {
-    purchaseBucks(bundleId);
-    confetti({ particleCount: 60, spread: 50, origin: { y: 0.7 }, colors: ['#8b5cf6', '#06b6d4'] });
+  const handleBuyBucks = async (bundleId: string) => {
+    try {
+      const result = await purchaseBucks(bundleId);
+      // In production, this would redirect to Stripe
+      // For now, we simulate the purchase
+      confetti({ particleCount: 60, spread: 50, origin: { y: 0.7 }, colors: ['#8b5cf6', '#06b6d4'] });
+    } catch (err) {
+      console.error('Purchase failed:', err);
+    }
   };
 
   return (
@@ -35,7 +53,7 @@ export default function Billing() {
             </div>
             <div>
               <p className="text-sm text-obsidian-500">Surge Coins</p>
-              <p className="text-3xl font-bold text-gold-400 font-mono">{state.billing.surge_coins}</p>
+              <p className="text-3xl font-bold text-gold-400 font-mono">{billing.surge_coins}</p>
             </div>
           </div>
           <p className="text-xs text-obsidian-500">
@@ -50,7 +68,7 @@ export default function Billing() {
             </div>
             <div>
               <p className="text-sm text-obsidian-500">Surge Bucks</p>
-              <p className="text-3xl font-bold text-cyber-purple font-mono">{state.billing.surge_bucks}</p>
+              <p className="text-3xl font-bold text-cyber-purple font-mono">{billing.surge_bucks}</p>
             </div>
           </div>
           <p className="text-xs text-obsidian-500">

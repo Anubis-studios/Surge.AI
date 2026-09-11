@@ -2,11 +2,10 @@
 // Surge.AI — API Hooks for React Components
 // ============================================================
 // Custom hooks for fetching data from the backend API
-// Uses mock API in development, real API in production
 // ============================================================
 
 import { useState, useEffect, useCallback } from 'react';
-import { mockApi } from '../lib/mockApi';
+import { billingApi, videosApi, imagesApi, rewardsApi, purchaseApi } from '../lib/apiClient';
 import type { BillingStatus, Video, GeneratedImage } from '../types';
 
 // ============================================================
@@ -22,7 +21,7 @@ export function useBillingStatus() {
     setLoading(true);
     setError(null);
     try {
-      const status = await mockApi.billing.getStatus();
+      const status = await billingApi.getStatus();
       setData(status);
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch billing status'));
@@ -51,7 +50,7 @@ export function useRecentVideos(limit = 20) {
     setLoading(true);
     setError(null);
     try {
-      const videos = await mockApi.videos.getRecent(limit);
+      const videos = await videosApi.getRecent(limit);
       setData(videos);
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch videos'));
@@ -80,7 +79,7 @@ export function useRecentImages(limit = 20) {
     setLoading(true);
     setError(null);
     try {
-      const images = await mockApi.images.getRecent(limit);
+      const images = await imagesApi.getRecent(limit);
       setData(images);
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch images'));
@@ -110,7 +109,7 @@ export function useVideoRender() {
     setError(null);
     setJobId(null);
     try {
-      const result = await mockApi.videos.submitRender(prompt, assets);
+      const result = await videosApi.submitRender(prompt, assets);
       setJobId(result.job_id);
       return result;
     } catch (err) {
@@ -142,7 +141,7 @@ export function useImageGeneration() {
     setError(null);
     setImageUrl(null);
     try {
-      const result = await mockApi.images.submitGeneration(prompt, params);
+      const result = await imagesApi.submitGeneration(prompt, params);
       setImageUrl(result.image_url);
       return result;
     } catch (err) {
@@ -171,7 +170,7 @@ export function useDailyReward() {
     setError(null);
     setResult(null);
     try {
-      const reward = await mockApi.billing.claimDailyReward();
+      const reward = await rewardsApi.claimDaily();
       setResult(reward);
       return reward;
     } catch (err) {
@@ -198,7 +197,7 @@ export function usePurchase() {
     setLoading(true);
     setError(null);
     try {
-      const result = await mockApi.purchase.createCoinCheckout(packId);
+      const result = await purchaseApi.createCoinCheckout(packId);
       return result;
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to purchase coins');
@@ -213,7 +212,7 @@ export function usePurchase() {
     setLoading(true);
     setError(null);
     try {
-      const result = await mockApi.purchase.createBuckCheckout(packId);
+      const result = await purchaseApi.createBuckCheckout(packId);
       return result;
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to purchase bucks');
