@@ -118,6 +118,35 @@ npm run build
 
 ---
 
+## 🧪 Testing & Linting
+
+### Run Tests
+```bash
+npm run test              # Run all tests
+npm run test:watch        # Watch mode
+npm run test:coverage     # With coverage report
+```
+
+### Run Linter
+```bash
+npm run lint              # Check for issues
+npm run lint:fix          # Auto-fix issues
+```
+
+### Type Check
+```bash
+npm run typecheck         # TypeScript validation
+```
+
+### Test Coverage
+Tests cover:
+- Economy configuration (bundles, costs, rewards)
+- Store logic (state management, currency operations)
+- Component rendering (all pages)
+- User interactions (image/video generation, purchases)
+
+---
+
 ## 💰 Economy System
 
 ### Surge Coins
@@ -196,6 +225,46 @@ Custom CSS classes:
 - `.terminal-input` — Dark monospace input
 - `.stat-box` — Balance display card
 - `.gold-glow-panel` — Panel with gold glow border
+
+---
+
+## 🐳 Docker & Deployment
+
+### Docker Build
+```bash
+npm run docker:build      # Build Docker image
+npm run docker:run        # Run container on port 3000
+```
+
+### Docker Compose
+```bash
+docker-compose up -d      # Production mode
+docker-compose --profile dev up -d  # Development mode
+```
+
+### Deployment Scripts
+```bash
+# Health check
+./scripts/health-check.sh http://localhost:3000
+
+# Deploy to staging
+./scripts/deploy.sh staging latest
+
+# Deploy to production
+./scripts/deploy.sh production v1.0.0
+
+# Rollback
+./scripts/rollback.sh staging
+./scripts/rollback.sh production v0.9.0
+```
+
+### CI/CD Pipeline
+- **CI**: Runs on every push/PR (lint, typecheck, test, build)
+- **Staging**: Auto-deploys on push to `develop`
+- **Production**: Auto-deploys on push to `main`
+- **Rollback**: Automatic on health check failure
+
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for full deployment guide.
 
 ---
 
