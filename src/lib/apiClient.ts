@@ -7,6 +7,8 @@
 
 import type { BillingStatus, Video, Image } from '../types';
 
+// In development, API calls are proxied via Vite to the backend
+// In production, VITE_API_URL should be set to the backend URL
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 // ============================================================
