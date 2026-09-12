@@ -1,23 +1,35 @@
 import { useStore, STREAK_REWARDS } from '../store';
-import { Gift, Flame, Coins, Calendar, Trophy, Sparkles, CheckCircle, Lock } from 'lucide-react';
+import { useBillingStatus, useDailyReward } from '../hooks/useApi';
+import { Gift, Flame, Coins, Calendar, Trophy, Sparkles, CheckCircle, Lock, Loader2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 export default function Rewards() {
-  const { state, claimDailyReward } = useStore();
-  const { billing, streakClaimed } = state;
+  const { state } = useStore();
+  const { data: apiBilling } = useBillingStatus();
+  const { claimReward, loading, error: rewardError } = useDailyReward();
+  
+  // Use API data if available, fallback to store
+  const billing = apiBilling || state.billing;
+  const streakClaimed = state.streakClaimed;
 
   const today = new Date().toISOString().split('T')[0];
   const alreadyClaimedToday = streakClaimed || billing.last_login === today;
 
-  const handleClaim = () => {
-    claimDailyReward();
-    if (!alreadyClaimedToday) {
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 },
-        colors: ['#fbbf24', '#f59e0b', '#d97706', '#fde68a'],
-      });
+  const handleClaim = async () => {
+    if (alreadyClaimedToday) return;
+    
+    try {
+      const result = await claimReward();
+      if (result && result.coins_earned > 0) {
+        confetti({
+          particleCount: 100,
+          spread: 70,
+          origin: { y: 0.6 },
+          colors: ['#fbbf24', '#f59e0b', '#d97706', '#fde68a'],
+        });
+      }
+    } catch (err) {
+      console.error('Failed to claim reward:', err);
     }
   };
   const currentDay = billing.login_streak;

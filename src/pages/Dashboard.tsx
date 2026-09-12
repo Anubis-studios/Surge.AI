@@ -1,14 +1,40 @@
 import { useStore, STREAK_REWARDS } from '../store';
-import { Coins, DollarSign, Flame, Image, Video, ArrowRight, Sparkles } from 'lucide-react';
+import { useBillingStatus } from '../hooks/useApi';
+import { Coins, DollarSign, Flame, Image, Video, ArrowRight, Sparkles, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function Dashboard() {
   const { state } = useStore();
-  const { billing } = state;
+  const { data: apiBilling, loading, error } = useBillingStatus();
+  
+  // Use API data if available, fallback to store
+  const billing = apiBilling || state.billing;
 
   const currentStreakReward = STREAK_REWARDS[Math.min(billing.login_streak, STREAK_REWARDS.length - 1)];
   const nextReward = STREAK_REWARDS[Math.min(billing.login_streak + 1, STREAK_REWARDS.length - 1)];
   const streakProgress = (billing.login_streak / 5) * 100;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 text-gold-400 animate-spin mx-auto mb-4" />
+          <p className="text-obsidian-400">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <p className="text-red-400 mb-2">Failed to load billing data</p>
+          <p className="text-obsidian-500 text-sm">{error.message}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">

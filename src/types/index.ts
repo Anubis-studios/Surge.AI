@@ -122,3 +122,17 @@ export interface AppState {
 }
 
 export type PageRoute = 'dashboard' | 'image-studio' | 'video-engine' | 'billing' | 'rewards';
+
+// ============================================================
+// Surge.AI — API Response Types
+// ============================================================
+
+export interface BillingStatus {
+  surge_coins: number;
+  surge_bucks: number;
+  login_streak: number;
+  last_login: string | null;
+}
+
+// Alias for GeneratedImage (used in API responses)
+export type Image = GeneratedImage;

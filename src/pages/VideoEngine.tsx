@@ -1,24 +1,35 @@
 import { useState } from 'react';
 import { useStore, VIDEO_COST_BUCKS } from '../store';
+import { useBillingStatus, useVideoRender, useRecentVideos } from '../hooks/useApi';
 import { Video, DollarSign, Film, Play, Loader2, Clock, CheckCircle } from 'lucide-react';
 
 export default function VideoEngine() {
-  const { state, generateVideo } = useStore();
+  const { state } = useStore();
+  const { data: apiBilling } = useBillingStatus();
+  const { submitRender, loading: isGenerating, error: renderError } = useVideoRender();
+  const { data: recentVideos, refetch: refetchVideos } = useRecentVideos();
+  
+  // Use API data if available, fallback to store
+  const billing = apiBilling || state.billing;
+  const videos = recentVideos.length > 0 ? recentVideos : state.videos;
+  
   const [prompt, setPrompt] = useState('');
   const [scenes, setScenes] = useState<string[]>(['']);
-  const [isGenerating, setIsGenerating] = useState(false);
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
-    if (state.billing.surge_bucks < VIDEO_COST_BUCKS) return;
+    if (billing.surge_bucks < VIDEO_COST_BUCKS) return;
 
-    setIsGenerating(true);
     const assets = { scenes: scenes.filter(s => s.trim()) };
 
-    // Simulate processing delay
-    await new Promise(resolve => setTimeout(resolve, 2500));
-    generateVideo(prompt, assets);
-    setIsGenerating(false);
+    try {
+      await submitRender(prompt, assets);
+      setPrompt('');
+      setScenes(['']);
+      refetchVideos();
+    } catch (err) {
+      console.error('Video generation failed:', err);
+    }
   };
 
   const addScene = () => {
@@ -50,7 +61,7 @@ export default function VideoEngine() {
         </div>
         <div className="stat-box py-3 px-5 flex items-center gap-3">
           <DollarSign className="w-5 h-5 text-cyber-purple" />
-          <span className="text-xl font-bold text-cyber-purple font-mono">{state.billing.surge_bucks}</span>
+          <span className="text-xl font-bold text-cyber-purple font-mono">{billing.surge_bucks}</span>
           <span className="text-sm text-obsidian-500">bucks</span>
         </div>
       </div>
@@ -118,7 +129,7 @@ export default function VideoEngine() {
           {/* Generate Button */}
           <button
             onClick={handleGenerate}
-            disabled={!prompt.trim() || state.billing.surge_bucks < VIDEO_COST_BUCKS || isGenerating}
+            disabled={!prompt.trim() || billing.surge_bucks < VIDEO_COST_BUCKS || isGenerating}
             className="w-full py-4 px-6 rounded-full font-bold text-sm uppercase tracking-wider transition-all bg-gradient-to-r from-cyber-purple to-cyan-500 text-white shadow-lg shadow-cyber-purple/20 hover:shadow-cyber-purple/40 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2"
           >
             {isGenerating ? (
@@ -134,7 +145,7 @@ export default function VideoEngine() {
             )}
           </button>
 
-          {state.billing.surge_bucks < VIDEO_COST_BUCKS && (
+          {billing.surge_bucks < VIDEO_COST_BUCKS && (
             <p className="text-sm text-red-400 text-center">
               Not enough Surge Bucks. <a href="/billing" className="text-gold-400 underline">Buy more →</a>
             </p>
@@ -149,10 +160,10 @@ export default function VideoEngine() {
                 <Film className="w-5 h-5 text-cyber-purple" />
                 Generated Videos
               </h3>
-              <span className="text-sm text-obsidian-500">{state.videos.length} videos</span>
+              <span className="text-sm text-obsidian-500">{videos.length} videos</span>
             </div>
 
-            {state.videos.length === 0 ? (
+            {videos.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <div className="w-20 h-20 rounded-full bg-obsidian-800 flex items-center justify-center mb-4">
                   <Video className="w-10 h-10 text-obsidian-600" />
@@ -162,7 +173,7 @@ export default function VideoEngine() {
               </div>
             ) : (
               <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
-                {state.videos.map(vid => (
+                {videos.map(vid => (
                   <div key={vid.id} className="image-card p-3 flex gap-4">
                     <div className="relative w-32 h-20 rounded-lg overflow-hidden flex-shrink-0">
                       <img

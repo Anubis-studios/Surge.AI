@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useStore, IMAGE_COST_COINS } from '../store';
+import { useBillingStatus, useImageGeneration, useRecentImages } from '../hooks/useApi';
 import { Image, Coins, Sparkles, Download, Wand2, Loader2 } from 'lucide-react';
 
 const STYLE_PRESETS = [
@@ -21,27 +22,36 @@ const ASPECT_RATIOS = [
 ];
 
 export default function ImageStudio() {
-  const { state, generateImage } = useStore();
+  const { state } = useStore();
+  const { data: apiBilling } = useBillingStatus();
+  const { submitGeneration, loading: isGenerating, error: generationError } = useImageGeneration();
+  const { data: recentImages, refetch: refetchImages } = useRecentImages();
+  
+  // Use API data if available, fallback to store
+  const billing = apiBilling || state.billing;
+  const images = recentImages.length > 0 ? recentImages : state.images;
+  
   const [prompt, setPrompt] = useState('');
   const [selectedStyle, setSelectedStyle] = useState('none');
   const [selectedRatio, setSelectedRatio] = useState('1:1');
-  const [isGenerating, setIsGenerating] = useState(false);
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
-    if (state.billing.surge_coins < IMAGE_COST_COINS) return;
+    if (billing.surge_coins < IMAGE_COST_COINS) return;
 
-    setIsGenerating(true);
     const fullPrompt = selectedStyle !== 'none'
       ? `${prompt}, ${selectedStyle} style`
       : prompt;
 
     const ratio = ASPECT_RATIOS.find(r => r.id === selectedRatio) || ASPECT_RATIOS[0];
 
-    // Simulate processing delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    generateImage(fullPrompt, { style: selectedStyle, width: ratio.width, height: ratio.height });
-    setIsGenerating(false);
+    try {
+      await submitGeneration(fullPrompt, { style: selectedStyle, width: ratio.width, height: ratio.height });
+      setPrompt('');
+      refetchImages();
+    } catch (err) {
+      console.error('Image generation failed:', err);
+    }
   };
 
   return (
@@ -57,7 +67,7 @@ export default function ImageStudio() {
         </div>
         <div className="stat-box py-3 px-5 flex items-center gap-3">
           <Coins className="w-5 h-5 text-gold-400" />
-          <span className="text-xl font-bold text-gold-400 font-mono">{state.billing.surge_coins}</span>
+          <span className="text-xl font-bold text-gold-400 font-mono">{billing.surge_coins}</span>
           <span className="text-sm text-obsidian-500">coins</span>
         </div>
       </div>
@@ -123,7 +133,7 @@ export default function ImageStudio() {
           {/* Generate Button */}
           <button
             onClick={handleGenerate}
-            disabled={!prompt.trim() || state.billing.surge_coins < IMAGE_COST_COINS || isGenerating}
+            disabled={!prompt.trim() || billing.surge_coins < IMAGE_COST_COINS || isGenerating}
             className="gold-capsule-button w-full flex items-center justify-center gap-2"
           >
             {isGenerating ? (
@@ -139,7 +149,7 @@ export default function ImageStudio() {
             )}
           </button>
 
-          {state.billing.surge_coins < IMAGE_COST_COINS && (
+          {billing.surge_coins < IMAGE_COST_COINS && (
             <p className="text-sm text-red-400 text-center">
               Not enough Surge Coins. <a href="/billing" className="text-gold-400 underline">Buy more →</a>
             </p>
@@ -154,10 +164,10 @@ export default function ImageStudio() {
                 <Sparkles className="w-5 h-5 text-gold-400" />
                 Generated Images
               </h3>
-              <span className="text-sm text-obsidian-500">{state.images.length} images</span>
+              <span className="text-sm text-obsidian-500">{images.length} images</span>
             </div>
 
-            {state.images.length === 0 ? (
+            {images.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <div className="w-20 h-20 rounded-full bg-obsidian-800 flex items-center justify-center mb-4">
                   <Image className="w-10 h-10 text-obsidian-600" />
@@ -167,7 +177,7 @@ export default function ImageStudio() {
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[600px] overflow-y-auto pr-2">
-                {state.images.map(img => (
+                {images.map(img => (
                   <div key={img.id} className="image-card group">
                     <div className="relative">
                       <img
